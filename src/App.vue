@@ -1,18 +1,21 @@
 <template>
 <div id="app">
     <!-- <HelloWorld></HelloWorld> -->
-    <ModelPage></ModelPage>
+    <!-- <ModelPage></ModelPage> -->
+    <DmManagerPage></DmManagerPage>
 </div>
 </template>
 
 <script>
-import HelloWorld from "./components/HelloWorld"
-import ModelPage from "./components/ModelPage"
+// import HelloWorld from "./components/HelloWorld"
+// import ModelPage from "./components/ModelPage"
+import DmManagerPage from "./components/DmManagerPage"
 export default {
     name: 'App',
     components: {
-        HelloWorld,
-        ModelPage
+        // HelloWorld,
+        // ModelPage,
+        DmManagerPage
     }
 }
 </script>
