@@ -1,11 +1,11 @@
 var fs = require('fs')
 const random = require('string-random');
-var baseUrl = "static/data/test/w2t5/trail/"
+var baseUrl = "static/data/test/h1/trail/"
 var otherInfor = ["full_count", "version", "stats", "selected-aircraft", "selected"];
-run();
+runSimple();
 
 async function run() {
-    var json = fs.readFileSync("static/data/test/w2t5/flight/flight0.json");
+    var json = fs.readFileSync("static/data/test/h1/flight/flight0.json");
     json = JSON.parse(json);
     var arrays = []
     for (let key in json) {
@@ -26,6 +26,17 @@ async function run() {
         start = end;
         end = end + 1000;
     }, 2000)
+}
+
+async function runSimple() {
+    var json = fs.readFileSync("static/data/test/h1/flight/flight0.json");
+    json = JSON.parse(json);
+    for (let key in json) {
+        if (!otherInfor.includes(key)) {
+            writeFiles(key)
+        }
+
+    }
 }
 
 function writeFiles(key) {

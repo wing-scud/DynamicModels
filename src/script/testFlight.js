@@ -1,7 +1,7 @@
 var fs = require('fs')
 const random = require('string-random');
-var baseUrl = 'static/data/test/w2t5/flight/'
-    // var json = createFirstFlight(25000);
+var baseUrl = 'static/data/test/h1/flight/'
+    // var json = createFirstFlight(100);
     // fs.writeFile(baseUrl + 'flight' + 0 + '.json', JSON.stringify(json), (error) => {
     //     console.log("over")
     // })
@@ -130,7 +130,7 @@ function directoryFils() {
 
 function writeFileInfor() {
     var files = fs.readdirSync(baseUrl);
-    fileName = 'static/data/test/w2t5/' + "flightInfor.json";
+    fileName = 'static/data/test/h1/' + "flightInfor.json";
     var data = JSON.stringify({ "data": files })
     fs.writeFile(fileName, data, (err) => {
         if (err) throw err;

@@ -16,9 +16,9 @@
         <div class="operater">
             <el-button type="primary" plain @click="deleteMb()">清除动标</el-button>
         </div>
-        <div class="operater">
+        <!-- <div class="operater">
             <el-button type="primary" plain @click=" addPartical()">添加粒子效果</el-button>
-        </div>
+        </div> -->
         <div class="operater">
             <el-button type="primary" plain @click=" trackModel()">跟踪目标</el-button>
         </div>
@@ -51,7 +51,7 @@ export default {
             basePath: "static/data/test/w2/",
             interval: undefined,
             cameraPick: false,
-            viewer: '',
+
             timelineControl: true,
             time: 0,
             minTime: 0,
@@ -80,7 +80,6 @@ export default {
         );
         var page = this;
         window.viewer = viewer;
-        this.viewer = viewer;
         var scene = viewer.scene;
         var handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
         handler.setInputAction(function (movement) {
@@ -181,7 +180,7 @@ export default {
                         });
                         page.modelMap.set(dm.id, dm);
                         page.collection = collection;
-                        dm.addTo(page.viewer)
+                        dm.addTo(viewer)
                     }
                     page.trueTimeUpdate().then(res => {
                         page.interval = res;

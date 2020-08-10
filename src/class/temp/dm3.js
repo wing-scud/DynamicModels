@@ -1,9 +1,13 @@
-// import Cesium from 'cesium/Cesium';
+/** 版本3+manager
+ * 基础功能+距离显示样标，
+ * 动态更新collection
+ * dm类：保存属性，自带方法，
+ */
+var geohash = require('ngeohash');
 var Cesium = require('cesium/Cesium');
-class DynamicModels {
+class DynamicModel {
     constructor(options) {
         this.id = options.id;
-        // this.collection = options.collection;
         this.modelInstance = options.instance;
         if (options.trail !== undefined) {
             this.trail = options.trail;
@@ -33,11 +37,29 @@ class DynamicModels {
     get historyRoute() {
         return this._historyRoute;
     }
+    get level() {
+        return this._level;
+    }
+    get billBoard() {
+        return this._billboard;
+    }
+    get point() {
+        return this._point;
+    }
     get modelInstance() {
         return this._modelInstance;
     }
     get pathLine() {
         return this._pathLine;
+    }
+    set level(level) {
+        this._level = level;
+    }
+    set billBoard(billBoard) {
+        this._billBoard = billBoard;
+    }
+    set point(point) {
+        this._point = point;
     }
     set pathLine(pathLine) {
         this._pathLine = pathLine;
@@ -56,7 +78,19 @@ class DynamicModels {
     }
     set modelMatrix(modelMatrix) {
         this._modelMatrix = modelMatrix;
-        this._modelInstance.modelMatrix = modelMatrix;
+        switch (this._level) {
+            case 'point':
+                this._point.position = this.getPosition();
+                break;
+            case 'billboard':
+                this._billBoard.position = this.getPosition();
+                break;
+            case 'model':
+                this._modelInstance.modelMatrix = modelMatrix;
+                break;
+            default:
+                return;
+        }
     }
     set trail(trail) {
         this._trail = trail;
@@ -71,6 +105,7 @@ class DynamicModels {
         this._modelInstance = modelInstance;
     }
     init() {
+        this.level = this.getLevelByHeight();
         this.clock = new Cesium.Clock();
         this.historyRoute = false;
         this.modelMatrix = this.modelInstance.modelMatrix;
@@ -83,7 +118,7 @@ class DynamicModels {
         this.path = "";
         this.pathLine = new Cesium.PrimitiveCollection();
         // 有关这个飞机的属性，比如名称等
-        this.attribute = new Object();
+        this.attribute = {};
     }
     rotateModel(quaternion) {
             var matrix = this.modelMatrix;
@@ -127,6 +162,10 @@ class DynamicModels {
         }
     }
     update = () => {
+        var level = this.getLevelByHeight(this.viewer.camera.positionCartographic)
+        if (level !== this.level) {
+            this.addPrimitiveByLevel(level);
+        }
         if (this.clock.shouldAnimate) {
             var time = this.clock.currentTime;
             var position = this.sampledPosition.getValue(time);
@@ -173,7 +212,60 @@ class DynamicModels {
             this.modelMatrix = modelMatrix;
         }
     }
+    addPoint() {
+        var viewer = this.viewer;
+        var mb = this;
+        //     var pointCollection=new Cesium.PointCollection()
+        if (!this.point) {
+            var point = new Cesium.PointPrimitive({
+                show: true,
+                position: mb.getPosition(),
+                pixelSize: 10.0,
+                color: Cesium.Color.WHITE,
+                outlineColor: Cesium.Color.TRANSPARENT,
+                outlineWidth: 0.0,
+                id: mb.id + '_point'
+            })
+            this.point = viewer.scene.primitives.add(point);
+        }
+    }
 
+    removePoint() {
+        var viewer = this.viewer;
+        //collcetion remove
+        viewer.scene.primitives.remove(this.point)
+    }
+
+    addBillboard() {
+        var viewer = this.viewer;
+        var mb = this;
+        if (!this.billboard) {
+            var billboard = new Cesium.Billboard({
+                position: mb.getPosition(),
+                image: 'static/image/billboard.png',
+                id: mb.id + '_billboard'
+            });
+            this.billBoard = viewer.scene.primitives.add(billboard);
+        }
+    }
+
+    removeBillboard() {
+        var viewer = this.viewer;
+        //collcetion remove
+        viewer.scene.primitives.remove(this.billBoard)
+    }
+
+    addModel() {
+        var viewer = this.viewer;
+        var mb = this;
+        if (!this.model) {
+            console.log('model~~');
+            // this._modelPrimitive = this._earth.scene.primitives.add(Model.fromGltf(this._modelOption));
+            // this._modelPrimitive.readyPromise.then(() => {
+            //     this._modelReady = true;
+            // });
+        }
+    }
     addParticleSystem() {
         var viewer = this.viewer;
         var model = this;
@@ -246,6 +338,32 @@ class DynamicModels {
         }
         return id;
     }
+    getLevelByHeight(cartographic) { // >>>
+        if (!cartographic || cartographic.height > 1e6) {
+            return 'point';
+        } else if (cartographic.height <= 1e6 && cartographic.height > 1e5) {
+            return 'billboard';
+        }
+        return 'model';
+    }
+    addPrimitiveByLevel(level) {
+        switch (level) {
+            case 'point':
+                this.addPoint();
+                this.level = 'point';
+                break;
+            case 'billboard':
+                this.addBillboard();
+                this.level = 'billboard';
+                break;
+            case 'model':
+                this.addModel();
+                this.level = 'model';
+                break;
+            default:
+                break;
+        }
+    }
     drawLine(color, positions, indexName) {
         var geometry = new Cesium.PolylineGeometry({
             positions: positions,
@@ -289,4 +407,4 @@ function computeEmitterModelMatrix() {
     trs.rotation = Cesium.Quaternion.fromHeadingPitchRoll(hpr, rotation); // 旋转
     return Cesium.Matrix4.fromTranslationRotationScale(trs, emitterModelMatrix);
 }
-export default DynamicModels;
+export default DynamicModel;
