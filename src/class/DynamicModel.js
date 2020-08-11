@@ -3,21 +3,15 @@
  * 动态更新collection
  * dm类：保存属性，自带方法，
  */
-
-
 var Cesium = require('cesium/Cesium');
 class DynamicModel {
     constructor(options) {
-        this.id = options.id;
-        this.collection = options.collection;
-        this.modelMatrix = options.modelMatrix;
-        this.name = options.name;
-        this.code = options.code;
-        if (options.trail !== undefined) {
-            this.trail = options.trail;
-        } else {
-            this.trail = [];
-        }
+        let { id, collection, modelMatrix, name, code } = options;
+        this.id = id;
+        this.collection = collection;
+        this.modelMatrix = modelMatrix;
+        this.name = name;
+        this.code = code;
         this.init();
     }
     get model() {
@@ -117,26 +111,27 @@ class DynamicModel {
         this.pathLine = new Cesium.PrimitiveCollection();
         // 有关这个飞机的属性，比如名称等;
         this.attribute = {};
+        this.trail = []
     }
     update = (level, index) => {
         if (level !== this.level) {
             if (this.level) {
-                this.removePrimitiveByLevel(index)
+                this.removePrimitiveByLevel()
             }
             this.addPrimitiveByLevel(level, index);
         }
     }
     updatePositionByTime(time) {
         var position = this.sampledPosition.getValue(time);
+        if (this.path === "passed") {
+            //添加新的路线线条
+            this.drawPassingPath(position)
+        }
         var or = this.orientationProperty.getValue(time);
         var matrix3 = Cesium.Matrix3.fromQuaternion(or);
         var modelMatrix = Cesium.Matrix4.fromRotationTranslation(matrix3, position);
         this.modelMatrix = modelMatrix;
         this.modelInstance.modelMatrix = modelMatrix;
-        if (this.path === "passed") {
-            //添加新的路线线条
-            this.drawPassingPath(position)
-        }
     }
     updatePositionByLevel(matrix) {
         this.modelMatrix = matrix;
@@ -190,21 +185,17 @@ class DynamicModel {
                 break;
         }
     }
-    removePrimitiveByLevel(index) {
+    removePrimitiveByLevel() {
         var level = this.level;
         switch (level) {
             case 'point':
                 this.point = undefined
-                    // this.collection.remove(this.point)
                 break;
             case 'billboard':
                 this.billboard = undefined
-                    //this.collection.remove(this.billboard)
                 break;
             case 'model':
                 this.modelInstance = undefined
-                console.log("remove model")
-                    //this.viewer.scene.primitives.collections.remove(this.modelInstance);
                 break;
             default:
                 break;
@@ -239,7 +230,7 @@ class DynamicModel {
             var polyline = drawLine(color, cartesianArray, lineName)
             this.pathLine.add(polyline);
         }
-        //每次绘制更新的变量线条
+        //TODO: 每次绘制更新的变量线条=>优化为以samplePositionProperty，time取值更新
     drawPassingPath(position) {
         var path = [];
         var color = Cesium.Color.BLUE;
@@ -251,6 +242,7 @@ class DynamicModel {
     }
     drawPassedPath() {
         var id = this.getNearTrail(this.getPosition());
+        console.log(id)
         if (id !== this.trail.length - 1) {
             var path = [];
             var color = Cesium.Color.BLUE;
@@ -283,10 +275,10 @@ class DynamicModel {
         var end = new Cesium.Cartesian3();
         var length1 = 0;
         var length2 = 0;
-        for (let i = 0; i < this.trail.length - 1; i++) {
+        for (let i = this.trail.length - 1; i >= 0; i--) {
             start = Cesium.Cartesian3.fromDegrees(this.trail[i].lng, this.trail[i].lat, this.trail[i].alt)
             Cesium.Cartesian3.negate(start, start);
-            end = Cesium.Cartesian3.fromDegrees(this.trail[i + 1].lng, this.trail[i + 1].lat, this.trail[i + 1].alt)
+            end = Cesium.Cartesian3.fromDegrees(this.trail[i - 1].lng, this.trail[i - 1].lat, this.trail[i - 1].alt)
             length1 = Cesium.Cartesian3.magnitude(Cesium.Cartesian3.add(start, position, new Cesium.Cartesian3()))
             length2 = Cesium.Cartesian3.magnitude(Cesium.Cartesian3.add(start, end, new Cesium.Cartesian3()))
             if (length1 < length2) {

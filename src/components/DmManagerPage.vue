@@ -29,7 +29,7 @@
                 </div>
                 <div class="operater">
                     <span> 时钟 &nbsp;&nbsp;&nbsp;&nbsp;</span>
-                    <el-slider class="slider" v-model="time" :min="minTime" :max="maxTime" :format-tooltip="formatTooltip" @input="changeTime"></el-slider>
+                    <el-slider class="slider" v-model="time" :min="minTime" :max="maxTime" :format-tooltip="formatTooltip" @change="changeTime"></el-slider>
                 </div>
                 <div class="operater">
                     <span> 播放速度</span>
@@ -228,7 +228,6 @@ export default {
                     page.dmManager.initTrueTime();
                 }
                 page.dmManager.trueTimeUpdate(trueTimeMap)
-                // page.dmManager.matrixMap = trueTimeMap;
                 fileNum++;
             }, 1500);
             return interval;
@@ -263,6 +262,7 @@ export default {
                 clearInterval(this.interval);
             }
             this.dmManager.clearAllMbs();
+            this.drawer = false;
         },
         pathChoose() {
             this.dmManager.clearCurrPathLine()
@@ -294,27 +294,23 @@ export default {
             var position = dm.getPosition();
             var or = dm.getOrientation();
             var viewer = dmManager.viewer;
-            viewer.camera.setView({
-                destination: position,
-                orientation: {
-                    heading: Cesium.HeadingPitchRoll.fromQuaternion(or).heading, // east, default value is 0.0 (north)
-                    pitch: Cesium.Math.toRadians(-90),
-                    roll: 0
-                }
-            });
-            viewer.camera.moveBackward(100000);
+            var hpRange = {};
+            hpRange.heading = -Cesium.HeadingPitchRoll.fromQuaternion(or).heading + Cesium.Math.toRadians(180);
+            hpRange.pitch = Cesium.Math.toRadians(-45);
+            hpRange.range = 10000;
+            viewer.camera.lookAt(position, hpRange);
+            viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY); //camera lookat bug
         },
         formatTooltip(val) {
             var time = new Date(val)
             return time;
         },
-        //TODO
         judgeModelInstanceToDm(pick) {
             for (let value of this.dmManager.idMap.values()) {
                 if (pick instanceof Cesium.ModelInstance) {
-                    if (value.modelInstance.instanceId === pick.instanceId ) {
-                        if(value.collection._center.equals(pick.primitive._center)){
-                                    return value;
+                    if (value.modelInstance.instanceId === pick.instanceId) {
+                        if (value.collection._center.equals(pick.primitive._center)) {
+                            return value;
                         }
                     }
                 } else {
@@ -331,16 +327,18 @@ export default {
             var lng = Cesium.Math.toDegrees(cartographic.longitude);
             return [lng, lat, alt];
         },
+        //啥也不做？
         closeDrawer() {
-            //  this.dmMamager.currentDynamicModel = undefined;
-            //清空工作；
+            // this.dmMamager.currentDynamicModel = undefined;
+            //  this.dmManager.clearCurrPathLine();
         },
         changeTime(val) {
             if (val) {
                 this.dmManager.clock.currentTime = Cesium.JulianDate.fromDate(new Date(val));
-                if (this.dmManager.currentDynamicModel.path !== "path") {
+                if (this.dmManager.currentDynamicModel.path === "passed") {
                     this.dmManager.clearCurrPathLine();
-                    this.dmManager.setCurrPath("passed");
+                    this.dmManager.setCurrPath("")
+                 //  setTimeout(function(){this.dmManager.setCurrPath("passed")},500);
                 }
             }
         },
@@ -349,14 +347,14 @@ export default {
                 if (this.dmManager.currentDynamicModel) {
                     this.position = this.positionToDegrees(this.dmManager.currentDynamicModel.getPosition());
                 }
-            }, 500);
+            }, 1000);
         },
         editMb() {
             var hpr = Cesium.HeadingPitchRoll.fromDegrees(45, 0, 0);
             var scale = 5;
             this.dmManager.editCurrMb(hpr, scale);
         },
-        changeMb(){
+        changeMb() {
             this.dmManager.changeCurrMb("balloon");
         }
     },
@@ -384,8 +382,15 @@ export default {
                 //stop     
                 this.activeNames = ['1']
                 dmManager.dataDrive = undefined;
+                if (this.cameraPick) {
+                    this.trackModel();
+                }
             } else { //history
                 this.intervalSwitch = false;
+                2
+                dmManager.viewer.camera.setView({
+                    destination: dmManager.currentDynamicModel.getPosition()
+                });
                 if (currentDm.trail.length === 0) { //模型第一次点击
                     var trail = page.setTrail(currentDm.id);
                     trail.then(data => {
@@ -400,9 +405,7 @@ export default {
                     page.maxTime = Cesium.JulianDate.toDate(dmManager.clock.stopTime).getTime();
                     page.time = Cesium.JulianDate.toDate(dmManager.clock.startTime).getTime();
                 }
-                dmManager.viewer.camera.flyTo({
-                    destination: dmManager.currentDynamicModel.getPosition()
-                });
+                this.trackModel()
             }
 
         },

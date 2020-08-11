@@ -1,5 +1,8 @@
-// 卡顿，找出原因？g功能完善？性能测试上限 
-// level = model=>bilboard卡顿，billboard加载慢
+/**
+ * TODO:model=>bilboard卡顿billboard加载慢
+ * TODO:卡顿，找出原因？g功能完善？性能测试上限 
+ */
+
 var geohash = require('ngeohash');
 var Cesium = require('cesium/Cesium');
 import DynamicModel from './DynamicModel'
@@ -37,20 +40,20 @@ class DynamicManager {
         this.clock = new Cesium.Clock();
         this.clock.shouldAnimate = false;
         this.level = undefined;
-        this.dataDrive = undefined
+        this.dataDrive = undefined;
     }
     update = () => {
         var index = -1;
-        var time, dm;
         var idMap = this.idMap;
         var time = this.clock.currentTime;
         var nameMap = this.nameMap;
+        var time, dm;
         if (this.dataDrive === "history" && this.level === "model") {
             dm = this.currentDynamicModel;
             dm.updatePositionByTime(time);
             this.clock.tick();
         } else {
-            var level = this.getLevelByHeight(this.viewer.camera.positionCartographic);
+            var level = this.getLevelByHeight();
             if (level !== this.level) {
                 if (this.level && nameMap.size > 0) {
                     this.updateCollection(level);
@@ -66,10 +69,8 @@ class DynamicManager {
         }
     }
     initTrueTime() {
-        // this.clock.shouldAnimate = true;
-        //this.clock.startTime = Cesium.JulianDate.fromDate(new Date());
-        // this.clock.currentTime = Cesium.JulianDate.clone(this.clock.startTime);
         var currentDm = this.currentDynamicModel;
+        this.clock.shouldAnimate = false;
         if (currentDm) {
             currentDm.clearPathLine();
             currentDm = undefined
@@ -106,100 +107,70 @@ class DynamicManager {
         }
         //TODO new DM根据collection 创建同时，放到dmArray，更新到idMap
     addSameNameDynamicModels(optionsArray) {
-        const { name, modelMatrixArray, idNewArray } = optionsArray;
-        var url = urls[name];
-        var dmManager = this;
-        var codeInstancesMap = new Map(); //geohashCode:instancesArray[{}]
-        let instancesArray = [];
-        let sameCodeInstancesMap;
-        var modelMatrix;
-        var idArray = [];
-        let collection;
-        var sameCodeMap;
-        for (let i = 0; i < modelMatrixArray.length; i++) {
-            modelMatrix = modelMatrixArray[i]
-            let code = getCode(modelMatrix);
-            sameCodeInstancesMap = codeInstancesMap.get(code);
-            if (sameCodeInstancesMap) {
-                idArray = sameCodeInstancesMap.get("idArray");
-                instancesArray = sameCodeInstancesMap.get("instancesArray");
-            } else {
-                sameCodeInstancesMap = new Map();
-                idArray = [];
-                instancesArray = [];
+            var { name, modelMatrixArray, idNewArray } = optionsArray;
+            var dmManager = this;
+            var codeInstancesMap = new Map(); //geohashCode:instancesArray[{}]
+            let instancesArray = [];
+            var idArray = [];
+            var sameCodeInstancesMap, modelMatrix, collection, sameCodeMap;
+            for (let i = 0; i < modelMatrixArray.length; i++) {
+                modelMatrix = modelMatrixArray[i]
+                let code = getCode(modelMatrix);
+                sameCodeInstancesMap = codeInstancesMap.get(code);
+                if (sameCodeInstancesMap) {
+                    idArray = sameCodeInstancesMap.get("idArray");
+                    instancesArray = sameCodeInstancesMap.get("instancesArray");
+                } else {
+                    sameCodeInstancesMap = new Map();
+                    idArray = [];
+                    instancesArray = [];
+                }
+                idArray.push(idNewArray[i]);
+                instancesArray.push({ modelMatrix: modelMatrixArray[i] });
+                sameCodeInstancesMap.set("idArray", idArray);
+                sameCodeInstancesMap.set("instancesArray", instancesArray)
+                codeInstancesMap.set(code, sameCodeInstancesMap)
             }
-            idArray.push(idNewArray[i]);
-            instancesArray.push({ modelMatrix: modelMatrixArray[i] });
-            sameCodeInstancesMap.set("idArray", idArray);
-            sameCodeInstancesMap.set("instancesArray", instancesArray)
-            codeInstancesMap.set(code, sameCodeInstancesMap)
-        }
-        var sameNameCodeMap = this.nameMap.get(name);
-        if (!sameNameCodeMap) {
-            this.nameMap.set(name, new Map());
-        }
-        sameNameCodeMap = this.nameMap.get(name);
-        for (let [key, value] of codeInstancesMap) { //key =code
-            sameCodeMap = sameNameCodeMap.get(key);
-            if (sameCodeMap) {
-                instancesArray = sameCodeMap.get("instances");
-                idArray = sameCodeMap.get("ids");
-            } else {
-                instancesArray = [];
-                idArray = []
+            var sameNameCodeMap = this.nameMap.get(name);
+            if (!sameNameCodeMap) {
+                this.nameMap.set(name, new Map());
             }
-            instancesArray = instancesArray.concat(value.get("instancesArray"));
-            idArray = idArray.concat(value.get("idArray"));
-            if (this.level === "model") {
-                collection = new Cesium.ModelInstanceCollection({ url: url, instances: instancesArray });
-                collection.readyPromise.then(function(collection) {
-                    collection._model.minimumPixelSize = 30;
-                })
-                sameCodeMap = new Map([
-                    ["collection", collection],
-                    ["instances", instancesArray],
-                    ["ids", idArray]
-                ]);
-                for (let number = 0; number < idArray.length; number++) {
-                    let dm = new DynamicModel({ id: idArray[number], collection: collection, modelMatrix: instancesArray[number].modelMatrix, name: name, code: key })
-                    dm.addTo(dmManager);
-                    this.idMap.set(idArray[number], dm)
+            sameNameCodeMap = this.nameMap.get(name);
+            for (let [key, value] of codeInstancesMap) { //key =code
+                sameCodeMap = sameNameCodeMap.get(key);
+                if (sameCodeMap) {
+                    instancesArray = sameCodeMap.get("instances");
+                    idArray = sameCodeMap.get("ids");
+                } else {
+                    instancesArray = [];
+                    idArray = []
+                }
+                instancesArray = instancesArray.concat(value.get("instancesArray"));
+                idArray = idArray.concat(value.get("idArray"));
+                if (this.level === "model") {
+                    sameCodeMap = this.addSameCodeDynamicModels(name, instancesArray, idArray);
+                } else if (this.level === "point" || this.level === "billboard") {
+                    collection = this.createCollectionByLevel(this.level)
+                    for (let number = 0; number < idArray.length; number++) {
+                        let dm = new DynamicModel({
+                            id: idArray[number],
+                            collection: collection,
+                            modelMatrix: instancesArray[number].modelMatrix,
+                            name: name,
+                            code: key
+                        })
+                        dm.addTo(dmManager);
+                        this.idMap.set(idArray[number], dm)
+                    }
+                    sameCodeMap = new Map([
+                        ["collection", collection],
+                        ["instances", instancesArray],
+                        ["ids", idArray]
+                    ]);
                 }
                 this.viewer.scene.primitives.collections.add(collection)
-            } else if (this.level === "point" || this.level === "billboard") {
-                collection = this.createCollectionByLevel(this.level)
-                for (let number = 0; number < idArray.length; number++) {
-                    let dm = new DynamicModel({ id: idArray[number], collection: collection, modelMatrix: instancesArray[number].modelMatrix, name: name, code: key })
-                    dm.addTo(dmManager);
-                    this.idMap.set(idArray[number], dm)
-                }
-                sameCodeMap = new Map([
-                    ["collection", collection],
-                    ["instances", instancesArray],
-                    ["ids", idArray]
-                ]);
+                sameNameCodeMap.set(key, sameCodeMap);
             }
-            this.viewer.scene.primitives.collections.add(collection)
-            console.log(key)
-            sameNameCodeMap.set(key, sameCodeMap);
-        }
-    }
-    getLevelByHeight(cartographic) { // >>>
-        if (!cartographic || cartographic.height > 1e8) {
-            return 'point';
-        } else if (cartographic.height <= 1e8 && cartographic.height > 1e6) {
-            return 'billboard';
-        }
-        return "model";
-    }
-    createCollectionByLevel(level) {
-            var collection;
-            if (level === "point") {
-                collection = new Cesium.PointPrimitiveCollection();
-            } else if (level == "billboard") {
-                collection = new Cesium.BillboardCollection();
-            }
-            return collection;
         }
         //保存到nameMap collection
     updateCollection(level) {
@@ -215,7 +186,9 @@ class DynamicManager {
                 } else if (level === "model") {
                     collection = new Cesium.ModelInstanceCollection({ url: url, instances: instances });
                     collection.readyPromise.then(function(collection) {
+                        collection._model.scale = 1;
                         collection._model.minimumPixelSize = 30;
+                        collection._model.maximumScale = 100;
                     })
                 }
                 let idArray = sameCodeMap.get("ids");
@@ -226,18 +199,6 @@ class DynamicManager {
                 }
                 sameCodeMap.set("collection", collection);
                 this.viewer.scene.primitives.collections.add(collection)
-            }
-        }
-    }
-    getNameMapIndex(dm) {
-        var name = dm.name;
-        var code = dm.code;
-        var id = dm.id;
-        var sameCodeMap = this.nameMap.get(name).get(code);
-        var ids = sameCodeMap.get("ids")
-        for (let i = 0; i < ids.length; i++) {
-            if (ids[i] === id) {
-                return i
             }
         }
     }
@@ -274,61 +235,63 @@ class DynamicManager {
         dm.rotateAndScaleModel(quaternion, scale);
     }
     changeCurrMb(name) {
-        var url = urls[name];
-        var nameMap = this.nameMap;
-        var curr = this.currentDynamicModel;
-        var sameNameMapNew, sameNameMapOld;
-        var result;
-        if (!nameMap.has(name)) {
-            nameMap.set(name, new Map());
-        }
-        sameNameMapNew = nameMap.get(name);
-        sameNameMapOld = nameMap.get(curr.name);
-        var code = curr.code;
-        var sameCodeMapOld = sameNameMapOld.get(code);
-        if (!sameNameMapNew.has(code)) {
-            sameNameMapNew.set(code, new Map());
-        }
-        var sameCodeMapNew = sameNameMapNew.get(code);
-        //delete
-        var collection = sameCodeMapOld.get("collection");
-        this.viewer.scene.primitives.collections.remove(collection);
-        var instancesArray = sameCodeMapOld.get("instances");
-        var idArray = sameCodeMapOld.get("ids");
-        var index = idArray.indexOf(curr.id);
-        instancesArray.splice(index, 1);
-        idArray.splice(index, 1);
-        if (instancesArray.length > 0) {
-            result = this.createCollectionBySelf(curr.name, instancesArray, idArray)
-            sameNameMapOld.set(code, result);
-        }
-        //add
-        idArray = sameCodeMapNew.get("ids");
-        if (idArray) {
-            collection = sameCodeMapNew.get("collection");
-            this.scene.primitives.collections.remove(collection);
-            instancesArray = sameCodeMapNew.get("instances");
-        } else {
-            instancesArray = [];
-            idArray = []
-        }
-        instancesArray.push({ modelMatrix: curr.modelMatrix });
-        idArray.push(curr.id);
-        result = this.createCollectionBySelf(name, instancesArray, idArray)
-        sameNameMapNew.set(code, result);
-        this.nameMap.set(name, sameNameMapNew);
-        this.nameMap.set(curr.name, sameNameMapOld);
-        for (let [id, value] of this.idMap) {
-            if (id === curr.id) {
-                this.currentDynamicModel = value;
+            var nameMap = this.nameMap;
+            var curr = this.currentDynamicModel;
+            var sameNameMapNew, sameNameMapOld;
+            var result;
+            if (!nameMap.has(name)) {
+                nameMap.set(name, new Map());
+            }
+            sameNameMapNew = nameMap.get(name);
+            sameNameMapOld = nameMap.get(curr.name);
+            var code = curr.code;
+            var sameCodeMapOld = sameNameMapOld.get(code);
+            if (!sameNameMapNew.has(code)) {
+                sameNameMapNew.set(code, new Map());
+            }
+            var sameCodeMapNew = sameNameMapNew.get(code);
+            //delete
+            var collection = sameCodeMapOld.get("collection");
+            this.viewer.scene.primitives.collections.remove(collection);
+            var instancesArray = sameCodeMapOld.get("instances");
+            var idArray = sameCodeMapOld.get("ids");
+            var index = idArray.indexOf(curr.id);
+            instancesArray.splice(index, 1);
+            idArray.splice(index, 1);
+            if (instancesArray.length > 0) {
+                result = this.addSameCodeDynamicModels(curr.name, instancesArray, idArray)
+                sameNameMapOld.set(code, result);
+            }
+            //add
+            idArray = sameCodeMapNew.get("ids");
+            if (idArray) {
+                collection = sameCodeMapNew.get("collection");
+                this.scene.primitives.collections.remove(collection);
+                instancesArray = sameCodeMapNew.get("instances");
+            } else {
+                instancesArray = [];
+                idArray = []
+            }
+            instancesArray.push({ modelMatrix: curr.modelMatrix });
+            idArray.push(curr.id);
+            result = this.addSameCodeDynamicModels(name, instancesArray, idArray)
+            sameNameMapNew.set(code, result);
+            this.nameMap.set(name, sameNameMapNew);
+            this.nameMap.set(curr.name, sameNameMapOld);
+            for (let [id, value] of this.idMap) {
+                if (id === curr.id) {
+                    this.currentDynamicModel = value;
+                }
             }
         }
-    }
-    createCollectionBySelf(name, instancesArray, idArray) {
+        //局限于level="model"
+    addSameCodeDynamicModels(name, instancesArray, idArray) {
         var url = urls[name];
         var collection = new Cesium.ModelInstanceCollection({ url: url, instances: instancesArray });
         collection.readyPromise.then(function(collection) {
+            collection._model.scale = 1;
             collection._model.minimumPixelSize = 30;
+            collection._model.maximumScale = 100;
         })
         var sameCodeMap = new Map([
             ["collection", collection],
@@ -344,6 +307,36 @@ class DynamicManager {
         this.viewer.scene.primitives.collections.add(collection);
         return sameCodeMap;
     }
+    getNameMapIndex(dm) {
+        var name = dm.name;
+        var code = dm.code;
+        var id = dm.id;
+        var sameCodeMap = this.nameMap.get(name).get(code);
+        var ids = sameCodeMap.get("ids")
+        for (let i = 0; i < ids.length; i++) {
+            if (ids[i] === id) {
+                return i
+            }
+        }
+    }
+    getLevelByHeight() { // >>>
+        var cartographic = this.viewer.camera.positionCartographic;
+        if (!cartographic || cartographic.height > 5e6) {
+            return 'point';
+        } else if (cartographic.height <= 5e6 && cartographic.height > 1e5) {
+            return 'billboard';
+        }
+        return "model";
+    }
+    createCollectionByLevel(level) {
+        var collection;
+        if (level === "point") {
+            collection = new Cesium.PointPrimitiveCollection();
+        } else if (level == "billboard") {
+            collection = new Cesium.BillboardCollection();
+        }
+        return collection;
+    }
     addToViewer(viewer) {
         this.viewer = viewer;
         var collections = this.viewer.scene.primitives.add(new Cesium.PrimitiveCollection())
@@ -357,8 +350,11 @@ class DynamicManager {
         for (let [id, dm] of idMap) {
             dm.removePrimitiveByLevel(level);
         }
-        this.idMap = new Map()
-        this.currentDynamicModel = undefined;
+        this.idMap = new Map();
+        if (this.currentDynamicModel) {
+            this.clearCurrPathLine();
+            this.currentDynamicModel = undefined;
+        }
         this.nameMap = new Map();
         this.dataDrive = undefined;
         viewer.scene.primitives.collections.removeAll();
